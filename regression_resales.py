@@ -1,3 +1,4 @@
+#%%
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -169,4 +170,153 @@ for start_year in range(2015, current_year - year_range):
     # Exception in 2021-2022 where the model underpredicted by about 10% on average,
     # suggesting an abnormal surge in house prices during Covid.
     
+#%%
+''' Ashe + Bryan Testing '''
+
+
+'''
+
+# DISCLAIMER: JUST COPIED THE EARLIER CODES FOR THE MODELS TO WORK EXACTLY THE SAME WITH THE NEW COLUMN
+# IT DOESNT GET SAVED SO PLS CHECK
+
+'''
+
+''' Train-test split by constructing rolling 4 year models to predict the 5th year (but with 5-fold testing) '''
+
+from sklearn.model_selection import KFold
+from sklearn.linear_model import LinearRegression
+
+year_range = 4
+n_splits = 5  # For 5-fold split
+
+# Initialize KFold
+kf = KFold(n_splits=n_splits, shuffle=True, random_state=6969)
+
+for start_year in range(2015, current_year - year_range):
+    train_df = new_resales_reg[(new_resales_reg['year'] >= start_year-current_year) & (new_resales_reg['year'] < start_year-current_year+year_range)]
+    test_df = new_resales_reg[new_resales_reg['year'] == start_year-current_year+year_range]
     
+    # Prepare data
+    X = train_df.drop(columns=['resale_price']).to_numpy()
+    y = np.log(train_df['resale_price'].to_numpy())  # Log-transform y for training
+    
+    # Initialize model
+    lm = LinearRegression()
+    
+    fold = 0
+    for train_index, test_index in kf.split(X):
+        fold += 1
+        X_train, X_test = X[train_index], X[test_index]
+        y_train, y_test = y[train_index], y[test_index]
+        
+        # Train model
+        lm.fit(X_train, y_train)
+        
+        # Predict and calculate errors
+        y_pred = lm.predict(X_test)
+        errors = y_pred - y_test
+        
+        print(f'Fold {fold}, Model: {start_year}-{start_year+year_range-1} ({X_train.shape[0]} train datapoints), Test: {start_year+year_range} ({X_test.shape[0]} test datapoints)')
+        print(f'R2: {lm.score(X_train, y_train):.3f}')
+        print(f'Mean Error: {errors.mean():.3f}')
+        print(f'SD Error: {errors.std():.3f}')
+        print()
+
+# Overall even with 5 fold testing, values seem consistent so there’s no overfitting 
+# in any of the models so in the year range the dataset is pretty well-represented. 
+
+#%%
+''' Adding inflation rates '''
+
+Inflation_rates = {
+    -9: -0.522618167075298,
+    -8: -0.532268739716253,
+    -7: 0.576260310166349,
+    -6: 0.43862011844684,
+    -5: 0.565260568780326,
+    -4: -0.181916666666634,
+    -3: 2.30485959040484,
+    -2: 6.12106004039418,
+    -1: 4.825,
+    0: 3.1 # Forecasted
+}
+
+new_resales_reg['Inflation_rate'] = new_resales_reg['year'].map(Inflation_rates)
+
+# %%
+''' Regression: Simple'''
+
+x_variables = list(new_resales_reg.columns)
+y_variable = 'resale_price'
+
+try: x_variables.remove(y_variable)
+except ValueError: pass
+
+# Exporting the correlation matrix, too large to visualize
+new_resales_reg[x_variables].corr().to_csv('correl.csv')
+
+linear_model = smf.ols(data=new_resales_reg, formula=f'{y_variable} ~ {"+".join(x_variables)}').fit()
+print(linear_model.summary())
+print(f'Dummy Variables: {dummy_var}')
+
+# Here you can see that there's a v high colllinearity between inflation and year with 0.82. that's because of the trends in 
+# the inflation of recent years. I attached a screenshot of the inflation trends so if we actually include old data 
+# it might work but I don't think it's worth it
+
+# Side note: flat_type_2_ROOM still insignificant, R2 = 0.846
+
+#%%
+''' Regression: Changing y variable to log '''
+
+linear_model = smf.ols(data=new_resales_reg, formula=f'np.log({y_variable}) ~ {"+".join(x_variables)}').fit()
+print(linear_model.summary())
+print(f'Dummy Variables: {dummy_var}')
+
+# Adj R2 0.878, all variables significant. Lower R2 than before including inflation rate
+
+#%%
+
+''' Regression: Trying a different date range. In particular, we try the covid years (2020 onwards w/ inflation rate)'''
+
+resales_after_2020 = new_resales_reg[new_resales_reg['year']>=(2020-current_year)].reset_index(drop=True)
+
+linear_model = smf.ols(data=resales_after_2020, 
+    formula=f'np.log({y_variable}) ~ {"+".join(x_variables)}').fit()
+print(linear_model.summary())
+print(f'Dummy Variables: {dummy_var}')
+
+# R2 improved to 0.898, very minimal change from before (0.876)
+
+#%%
+
+''' Train-test split by constructing rolling 4 year models to predict the 5th year '''
+
+# Added a test to predict 2024 sales as well
+
+year_range = 4
+
+for start_year in range(2015, current_year + 1 - year_range):
+    train_df = new_resales_reg[(new_resales_reg['year'] >= start_year-current_year) & (new_resales_reg['year'] < start_year-current_year+year_range)]
+    test_df = new_resales_reg[new_resales_reg['year'] == start_year-current_year+year_range]
+    
+    X_train = train_df.drop(columns=['resale_price']).to_numpy()
+    y_train = train_df['resale_price'].to_numpy()
+    X_test = test_df.drop(columns=['resale_price']).to_numpy()
+    y_test = test_df['resale_price'].to_numpy()
+    
+    lm = LinearRegression()
+    lm.fit(X_train, np.log(y_train))
+    errors = lm.predict(X_test) - np.log(y_test)
+    
+    print(f'Model: {start_year}-{start_year+year_range-1} ({train_df.shape[0]} datapoints), Test {start_year+year_range} ({test_df.shape[0]} datapoints)')
+    print(f'R2: {lm.score(X_train, np.log(y_train)):.3f}')
+    print(f'Mean Error: {errors.mean():.3f}')
+    print(f'SD Error: {errors.std():.3f}')
+    print()
+    
+    # The 4-year models here have higher R2 but overall produces higher errors
+    # SD of the errors are also about 10%.
+    
+    # Model sees improvement where inflation was almost linear
+    # Only comment I can make is better off without inflation, unless we're using a much more long term data section
+# %%
