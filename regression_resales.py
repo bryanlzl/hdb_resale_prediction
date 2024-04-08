@@ -79,6 +79,8 @@ print(linear_model.summary())
 print(f'Dummy Variables: {dummy_var}')
 
 # Adj R2 0.862, 3-room and 4-room flats non-significant at 1% level
+# Surprisingly, coefficient of school_dist is positive 
+
 
 #%%
 ''' Regression: Changing y variable to log '''
@@ -108,7 +110,7 @@ print(f'Dummy Variables: {dummy_var}')
 #%%
 ''' Regression: Adding interaction variables between flat_type and floor_area '''
 
-var = ['3_ROOM', '4_ROOM', '5_ROOM', 'EXECUTIVE', 'MULTI_GENERATION']
+var = ['2_ROOM', '3_ROOM', '4_ROOM', '5_ROOM', 'EXECUTIVE', 'MULTI_GENERATION']
 interaction_var = 'floor_area_sqm'
 # interaction_var = 'remaining_lease'
 
@@ -119,12 +121,8 @@ linear_model = smf.ols(data=new_resales_reg,
 print(linear_model.summary())
 print(f'Dummy Variables: {dummy_var}')
 
-# Adj R2 0.891, not much difference.
-# Interaction with 4 room and MultiGen are not significant (1% level)
-
-# However, interaction with 3 room is highly significant. The intercept of 3 room also changes to negative.
-# This is noteworthy since we know that 3 room floor areas have a wide range with many positive outliers.
-# Hence we should keep the interaction variable with 3 room.
+# Adj R2 0.891, all variables significant.
+# Still prefer simpler model since not much difference.
 
 # I also tried interaction variables [year, storey_range, remaining_lease], results are not significant.
 
@@ -135,11 +133,11 @@ print(f'Dummy Variables: {dummy_var}')
 resales_after_2020 = new_resales_reg[new_resales_reg['year']>=(2020-current_year)].reset_index(drop=True)
 
 linear_model = smf.ols(data=resales_after_2020, 
-    formula=f'np.log({y_variable}) ~ {"+".join(x_variables)} + flat_type_3_ROOM:floor_area_sqm').fit()
+    formula=f'np.log({y_variable}) ~ {"+".join(x_variables)}').fit()
 print(linear_model.summary())
 print(f'Dummy Variables: {dummy_var}')
 
-# R2 improved to 0.920, showing that the smaller dataset works better to explain variance. 
+# R2 improved to 0.918, showing that the smaller dataset works better to explain variance. 
 # We keep this as final model.
 
 
@@ -149,12 +147,15 @@ pred_y = linear_model.fittedvalues
 plt.scatter(pred_y, linear_model.resid, s=1)
 plt.plot([min(pred_y),max(pred_y)],[0,0], color='black')
 plt.title('Residuals vs Pred y')
+plt.xlabel('Pred log(resale_price)')
 plt.show()
 
-for var in ['year', 'storey_range', 'remaining_lease', 'floor_area_sqm', 'mrt_dist']:
+for var in ['year', 'storey_range', 'remaining_lease', 'floor_area_sqm', 
+            'mrt_dist', 'shopping_dist', 'school_dist', 'hawker_dist']:
     plt.scatter(resales_after_2020[var], linear_model.resid, s=1)
     plt.plot([min(resales_after_2020[var]),max(resales_after_2020[var])],[0,0], color='black')
     plt.title(f'Residuals vs {var}')
+    plt.xlabel(var)
     plt.show()
 
 # In general variance of residuals seem constant for most variables 
@@ -185,11 +186,11 @@ for start_year in range(2015, current_year - year_range + 1):
     y_pred = lm.predict(X_test) 
     errors = y_pred - y_test
     
-    plt.scatter(y_test, y_pred, s=1)
+    plt.scatter(y_pred, y_test, s=1)
     plt.plot([min(y_pred),max(y_pred)], [min(y_pred),max(y_pred)], color='black')
     plt.title(f'Model: {start_year}-{start_year+year_range-1}, Test {start_year+year_range}')
-    plt.xlabel('Actual log(resale_price)')
-    plt.ylabel('Predicted log(resale_price)')
+    plt.ylabel('Actual log(resale_price)')
+    plt.xlabel('Predicted log(resale_price)')
     plt.show()
     
     print(f'Model: {start_year}-{start_year+year_range-1} ({train_df.shape[0]} datapoints), Test {start_year+year_range} ({test_df.shape[0]} datapoints)')
