@@ -149,12 +149,14 @@ pred_y = linear_model.fittedvalues
 plt.scatter(pred_y, linear_model.resid, s=1)
 plt.plot([min(pred_y),max(pred_y)],[0,0], color='black')
 plt.title('Residuals vs Pred y')
+plt.xlabel('Pred log(resale_price)')
 plt.show()
 
 for var in ['year', 'storey_range', 'remaining_lease', 'floor_area_sqm', 'mrt_dist']:
     plt.scatter(resales_after_2020[var], linear_model.resid, s=1)
     plt.plot([min(resales_after_2020[var]),max(resales_after_2020[var])],[0,0], color='black')
     plt.title(f'Residuals vs {var}')
+    plt.xlabel(var)
     plt.show()
 
 # In general variance of residuals seem constant for most variables 
