@@ -185,11 +185,11 @@ for start_year in range(2015, current_year - year_range + 1):
     y_pred = lm.predict(X_test) 
     errors = y_pred - y_test
     
-    plt.scatter(y_test, y_pred, s=1)
+    plt.scatter(y_pred, y_test, s=1)
     plt.plot([min(y_pred),max(y_pred)], [min(y_pred),max(y_pred)], color='black')
     plt.title(f'Model: {start_year}-{start_year+year_range-1}, Test {start_year+year_range}')
-    plt.xlabel('Actual log(resale_price)')
-    plt.ylabel('Predicted log(resale_price)')
+    plt.ylabel('Actual log(resale_price)')
+    plt.xlabel('Predicted log(resale_price)')
     plt.show()
     
     print(f'Model: {start_year}-{start_year+year_range-1} ({train_df.shape[0]} datapoints), Test {start_year+year_range} ({test_df.shape[0]} datapoints)')
