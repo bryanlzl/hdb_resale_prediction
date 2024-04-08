@@ -20,6 +20,7 @@ all_features = [
 
 # Dropdown options (town and flat type)
 town_options = {
+    "ANG_MO_KIO": "Ang Mo Kio",
     "BEDOK": "Bedok",
     "BISHAN": "Bishan",
     "BUKIT_BATOK": "Bukit Batok",
@@ -47,6 +48,7 @@ town_options = {
     "YISHUN": "Yishun",
 }
 flat_type_options = {
+    "1_ROOM": "1 Room",
     "2_ROOM": "2 Room",
     "3_ROOM": "3 Room",
     "4_ROOM": "4 Room",
@@ -147,10 +149,8 @@ def render_sidebar():
     )
     st.sidebar.text("\n")
     st.sidebar.title("Input HDB parameters")
-    st.sidebar.caption(
-        "HDB parameters for resale price prediction"
-    )
-    st.sidebar.caption("Ensure all fields are filled before predicting")
+    st.sidebar.markdown("* HDB parameters for resale price prediction")
+    st.sidebar.markdown("* Ensure all fields are filled before predicting")
 
     # Fetch  town and flat_type selection
     selected_town = input_field("town", {})
@@ -194,13 +194,16 @@ def max_value(field_name):
 def predict_price(user_inputs):
     town = user_inputs.pop("town")
     flat_type = user_inputs.pop("flat_type")
+
     # One-hot encode the categorical variables
     for town_option in town_options:
-        user_inputs[f"town_{town_option}"] = 1 if town_option == town else 0
+        if town_option != "ANG_MO_KIO":
+            user_inputs[f"town_{town_option}"] = 1 if town_option == town else 0
     for flat_type_option in flat_type_options:
-        user_inputs[f"flat_type_{flat_type_option}"] = (
-            1 if flat_type_option == flat_type else 0
-        )
+        if flat_type_option != "1_ROOM":
+            user_inputs[f"flat_type_{flat_type_option}"] = (
+                1 if flat_type_option == flat_type else 0
+            )
     data_for_prediction = pd.DataFrame([user_inputs])
 
     data_for_prediction.to_csv("TESTEST.csv", index=False)
@@ -214,11 +217,19 @@ def predict_price(user_inputs):
 
 def display_inputs_table(user_inputs):
     inputs_df = pd.DataFrame(list(user_inputs.items()), columns=["Feature", "Value"])
-
+    
     year_index = inputs_df[inputs_df["Feature"] == "year"].index
     if not year_index.empty:
         inputs_df.loc[year_index, "Value"] = inputs_df.loc[year_index, "Value"] + 2024
-
+        
+    FT_index = inputs_df[inputs_df["Feature"] == "flat_type"].index
+    if not FT_index.empty:
+        inputs_df.loc[FT_index, "Value"] = inputs_df.loc[FT_index, "Value"].apply(lambda x: x.replace("_", " ").lower())
+        
+    town_index = inputs_df[inputs_df["Feature"] == "town"].index
+    if not year_index.empty:
+        inputs_df.loc[town_index, "Value"] = inputs_df.loc[town_index, "Value"].apply(lambda x: x.replace("_", " ").title())
+        
     inputs_df["Unit"] = inputs_df["Feature"].apply(lambda x: feature_units.get(x, "-"))
     inputs_df["Feature"] = inputs_df["Feature"].apply(
         lambda x: feature_names.get(x, "-")
@@ -229,21 +240,34 @@ def display_inputs_table(user_inputs):
 
 def prediction_results(user_inputs):
     predicted_price = predict_price(user_inputs)
-    flat_type = [
-        key.split("_")[2]
-        for key, value in user_inputs.items()
-        if key.startswith("flat_type") and value == 1
-    ][0].replace("_", " ")
-    towns = [
-        key.split("_")[1]
-        for key, value in user_inputs.items()
-        if key.startswith("town_") and value == 1
-    ][0]
+    if all(
+        value == 0 for key, value in user_inputs.items() if key.startswith("flat_type_")
+    ):
+        flat_type = "1 room"
+    else:
+        flat_type = (
+            [
+                key[9:]
+                for key, value in user_inputs.items()
+                if key.startswith("flat_type") and value == 1
+            ][0]
+            .replace("_", " ")
+            .lower()
+        )
+    if all(value == 0 for key, value in user_inputs.items() if key.startswith("town_")):
+        town = "Ang Mo Kio"
+    else:
+        town = [
+            key[5:]
+            for key, value in user_inputs.items()
+            if key.startswith("town_") and value == 1
+        ][0].replace("_", " ").title()
+
     sale_year = user_inputs["year"] + 2024
     predicted_price_badge = f"<span style='background-color: orange; color: black; padding: 0.2em 0.5em; border-radius: 0.3em; font-weight: bold;'>${predicted_price[0]:,.2f}</span>"
 
     st.write(
-        f"The predicted resale price of a <span style='color: orange'>{towns.lower().capitalize()}</span> <span style='color: orange'>{flat_type.replace('_', ' ')}-room</span> flat in <span style='color: orange'>{sale_year}</span> is <span style='color: orange'>{predicted_price_badge}</span>",
+        f"The predicted resale price of a <span style='color: orange'>{town}</span> <span style='color: orange'>{flat_type}</span> flat in <span style='color: orange'>{sale_year}</span> is <span style='color: orange'>{predicted_price_badge}</span>",
         unsafe_allow_html=True,
     )
 
@@ -259,4 +283,4 @@ if prediction_mode == "Resale Price":
     if predict_clicked:
         prediction_results(user_inputs)
 else:
-    print("yoyo")
+    print("Here is for Rental Price prediction")
