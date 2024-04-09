@@ -67,12 +67,13 @@ new_resales_reg['year'] = new_resales_reg['year'] - current_year
 
 x_variables = list(new_resales_reg.columns)
 y_variable = 'resale_price'
-
 try: x_variables.remove(y_variable)
 except ValueError: pass
 
 # Exporting the correlation matrix, too large to visualize
+sns.heatmap(new_resales_reg.corr(), vmin=-1, vmax=1)
 new_resales_reg[x_variables].corr().to_csv('correl.csv')
+
 
 linear_model = smf.ols(data=new_resales_reg, formula=f'{y_variable} ~ {"+".join(x_variables)}').fit()
 print(linear_model.summary())
@@ -141,6 +142,18 @@ print(f'Dummy Variables: {dummy_var}')
 # We keep this as final model.
 
 
+# Exporting the correlation matrix, too large to visualize
+sns.heatmap(new_resales_reg.corr(), vmin=-1, vmax=1)
+new_resales_reg[x_variables].corr().to_csv('correl.csv')
+
+
+#%%
+''' Utility stuff '''
+
+# pd.concat([linear_model.params, linear_model.bse, linear_model.tvalues], axis=1)
+# new_resales[['resale_price','year']].groupby(by='year').median()
+
+
 #%%
 ''' Residual Analysis for Heteroscedasticity '''
 pred_y = linear_model.fittedvalues
@@ -188,6 +201,8 @@ for start_year in range(2015, current_year - year_range + 1):
     
     plt.scatter(y_pred, y_test, s=1)
     plt.plot([min(y_pred),max(y_pred)], [min(y_pred),max(y_pred)], color='black')
+    plt.annotate(f'R2: {lm.score(X_test, y_test):.3f} \nMAE: {np.abs(errors).mean():.3f} \nRMSE: {np.sqrt(np.square(errors).mean()):.3f}', 
+                 (min(y_pred),max(y_pred)-0.5))
     plt.title(f'Model: {start_year}-{start_year+year_range-1}, Test {start_year+year_range}')
     plt.ylabel('Actual log(resale_price)')
     plt.xlabel('Predicted log(resale_price)')
@@ -195,7 +210,6 @@ for start_year in range(2015, current_year - year_range + 1):
     
     print(f'Model: {start_year}-{start_year+year_range-1} ({train_df.shape[0]} datapoints), Test {start_year+year_range} ({test_df.shape[0]} datapoints)')
     print(f'R2: {lm.score(X_test, y_test):.3f}')
-    print(f'Mean Error: {errors.mean():.3f}')
     print(f'MAE: {np.abs(errors).mean():.3f}')
     print(f'RMSE: {np.sqrt(np.square(errors).mean()):.3f}')
     print()
@@ -215,6 +229,7 @@ n_splits = 5  # For 5-fold split
 kf = KFold(n_splits=n_splits, shuffle=True, random_state=6969)
 
 # Prepare data
+train_df = new_resales_reg[(new_resales_reg['year'] >= -4) & (new_resales_reg['year'] < 0)]
 X = train_df.drop(columns=['resale_price']).to_numpy()
 y = np.log(train_df['resale_price'].to_numpy())  # Log-transform y for training
 
@@ -233,10 +248,9 @@ for train_index, test_index in kf.split(X):
     
     print(f'Fold {fold}, {X_train.shape[0]} train datapoints, Test: {X_test.shape[0]} test datapoints')
     print(f'R2: {lm.score(X_test, y_test):.3f}')
-    print(f'Mean Error: {errors.mean():.3f}')
     print(f'MAE: {np.abs(errors).mean():.3f}')
     print(f'RMSE: {np.sqrt(np.square(errors).mean()):.3f}')
     print()
 
 # Results seem too good to be true?! lol
-# R2 always above 0.92, mean error basically 0%, MAE 7%, RMSE 9%
+# R2 always above 0.92, MAE 7%, RMSE 9%
