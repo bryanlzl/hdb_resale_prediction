@@ -1,11 +1,13 @@
 import streamlit as st
+from datetime import date
+from dateutil.relativedelta import relativedelta
 import pandas as pd
 import numpy as np
 import joblib
 
 # Load the trained models
 resale_linear_model = joblib.load("resale_linear_model.joblib")
-rental_linear_model = joblib.load("rental_linear_model.joblib")
+rental_random_forest_model = joblib.load("rental_random_forest_model.joblib")
 
 
 # Define all features
@@ -62,12 +64,12 @@ feature_names = {
     "town": "Town",
     "flat_type": "Flat Type",
     "storey_range": "Storey Range",
-    "floor_area_sqm": "Floor Area",
-    "remaining_lease": "Remaining Lease",
-    "mrt_dist": "Distance from MRT",
-    "shopping_dist": "Distance from Shopping Amenities",
-    "school_dist": "Distance from School",
-    "hawker_dist": "Distance from Hawker Centre",
+    "floor_area_sqm": "Floor Area (m^2)",
+    "remaining_lease": "Remaining Lease (yr)",
+    "mrt_dist": "Distance from MRT (km)",
+    "shopping_dist": "Distance from Shopping Amenities (km)",
+    "school_dist": "Distance from School (km)",
+    "hawker_dist": "Distance from Hawker Centre (km)",
 }
 feature_units = {
     "year": "year",
@@ -91,7 +93,7 @@ rental_all_features = [
     "shopping_dist",
     "intschool_dist",
     "hawker_dist",
-    "months_duration",
+    "months_since_signedrental",
 ]
 rental_town_options = {
     "ANG_MO_KIO": "Ang Mo Kio",
@@ -133,14 +135,14 @@ rental_feature_names = {
     "town": "Town",
     "flat_type": "Flat Type",
     "storey_range": "Storey Range",
-    "avg_floor_area_sqm": "Average Floor Area",
-    "remaining_lease": "Remaining Lease",
-    "mrt_dist": "Distance from MRT",
-    "shopping_dist": "Distance from Shopping Amenities",
-    "intschool_dist": "Distance from International School",
-    "hawker_dist": "Distance from Hawker Centre",
-    "months_duration": "Rental Duration",
-    "property_age": "Property Age"
+    "avg_floor_area_sqm": "Floor Area (m^2)",
+    "remaining_lease": "Remaining Lease (yr)",
+    "mrt_dist": "Distance from MRT (km)",
+    "shopping_dist": "Distance from Shopping Amenities (km)",
+    "intschool_dist": "Distance from International School (km)",
+    "hawker_dist": "Distance from Hawker Centre (km)",
+    "months_since_signedrental": "Rental Start Date",
+    "property_age": "Property Age (yr)"
 }
 rental_feature_units = {
     "town": "-",
@@ -178,11 +180,19 @@ def input_field(field_name, user_inputs):
                 index=list(flat_type_options.keys()).index(selected_flat_type),
                 key=unique_key,
             )
-        elif field_name in ["storey_range", "remaining_lease"]:
+        elif field_name == "storey_range":
             return st.sidebar.number_input(
                 feature_names[field_name],
-                min_value=int(min_value(field_name)),
-                max_value=int(max_value(field_name)),
+                min_value=1,
+                max_value=50,
+                key=field_name,
+            )
+        elif field_name == "remaining_lease":
+            return st.sidebar.number_input(
+                feature_names[field_name],
+                min_value=0,
+                max_value=99,
+                value=90,
                 key=field_name,
             )
         elif field_name == "year":
@@ -191,6 +201,7 @@ def input_field(field_name, user_inputs):
                     feature_names[field_name],
                     min_value=int(min_value(field_name)),
                     max_value=int(max_value(field_name)),
+                    value=2023,
                     key=field_name,
                 )
                 - 2024
@@ -199,14 +210,16 @@ def input_field(field_name, user_inputs):
             return st.sidebar.number_input(
                 feature_names[field_name],
                 min_value=0.0,
+                value=1.0,
                 step=0.001,
-                format="%.4f",
+                format="%.2f",
                 key=field_name,
             )
         elif field_name == "floor_area_sqm":
             return st.sidebar.number_input(
                 feature_names[field_name],
                 min_value=0.0,
+                value=80.0,
                 step=0.1,
                 key=field_name,
             )
@@ -254,24 +267,36 @@ def input_field(field_name, user_inputs):
             return st.sidebar.number_input(
                 rental_feature_names[field_name],
                 min_value=0.0,
+                value=1.0,
                 step=0.001,
-                format="%.4f",
+                format="%.2f",
                 key=field_name,
             )
         elif field_name == "avg_floor_area_sqm":
             return st.sidebar.number_input(
                 rental_feature_names[field_name],
                 min_value=0.0,
+                value=80.0,
                 step=1.0,
                 key=field_name,
             )
-        elif field_name in ["property_age", "months_duration"]:
+        elif field_name == "property_age":
             return st.sidebar.number_input(
                 rental_feature_names[field_name],
                 min_value=0,
+                value=90,
                 step=1,
                 key=field_name,
             )
+        elif field_name == "months_since_signedrental":
+            return st.sidebar.date_input(
+            "Select Rental Start Date",
+            min_value=date(2010, 1, 1),
+            max_value=date(2029, 12, 31),
+            value=date(2023, 8, 9),
+            format='DD/MM/YYYY',
+            help="Select the month and year when the rental agreement was signed."
+        )
         else:
             raise ValueError(f"Unknown field type for {field_name}")
 
@@ -287,6 +312,7 @@ def render_sidebar():
     st.sidebar.text("\n")
     st.sidebar.title("Input HDB parameters")
     return prediction_mode
+
 
 def render_sidebar2():
     if prediction_mode == "Resale Price":
@@ -320,9 +346,7 @@ def render_sidebar2():
     elif prediction_mode == "Rental Price":
         st.sidebar.markdown("* HDB parameters for rental price prediction")
         st.sidebar.markdown("* Ensure all fields are filled before predicting")
-
-        # Here you can define the input fields for Rental Price prediction
-        # For demonstration, I'm reusing the same fields but typically you would have different ones
+        
         selected_town = input_field("town", {})
         selected_flat_type = input_field("flat_type", {})
         town_key = next(
@@ -337,11 +361,16 @@ def render_sidebar2():
         user_inputs = {"town": town_key, "flat_type": flat_type_key}
 
         for feature in rental_all_features:
-            if feature not in [
+            if feature == "months_since_signedrental":
+                #reference_date = date(2023, 12, 31)
+                input_date = input_field(feature, user_inputs)
+                user_inputs[feature] = (input_date.year - 2023) * 12 + (input_date.month - 12)
+            elif feature not in [
                 "town",
                 "flat_type",
             ]:  # Avoid re-fetching town and flat_type'
                 user_inputs[feature] = input_field(feature, user_inputs)
+
         return user_inputs
 
 
@@ -378,9 +407,6 @@ def predict_price(user_inputs):
                     1 if flat_type_option == flat_type else 0
                 )
         data_for_prediction = pd.DataFrame([user_inputs])
-
-        data_for_prediction.to_csv("TESTEST.csv", index=False)
-
         # Predict the log resale price
         predicted_log_price = resale_linear_model.predict(data_for_prediction)
         # Convert predicted log price -> actual resale price
@@ -400,11 +426,9 @@ def predict_price(user_inputs):
                     1 if flat_type_option == flat_type else 0
                 )
         data_for_prediction = pd.DataFrame([user_inputs])
-
         data_for_prediction.to_csv("TESTEST.csv", index=False)
-
         # Predict the log rental price
-        predicted_price = rental_linear_model.predict(data_for_prediction)
+        predicted_price = rental_random_forest_model.predict(data_for_prediction)
         # Convert predicted log price -> actual rental price
         return predicted_price
 
@@ -448,10 +472,15 @@ def display_inputs_table(user_inputs):
             )
 
         town_index = inputs_df[inputs_df["Feature"] == "town"].index
-        if not year_index.empty:
+        if not town_index.empty:
             inputs_df.loc[town_index, "Value"] = inputs_df.loc[town_index, "Value"].apply(
                 lambda x: x.replace("_", " ").title()
             )
+
+        # Convert months_since_signedrental to date string
+        msr_index = inputs_df[inputs_df["Feature"] == "months_since_signedrental"].index
+        if not msr_index.empty:
+            inputs_df.loc[msr_index, "Value"] = inputs_df.loc[msr_index, "Value"].apply(convert_months_to_date)
 
         inputs_df["Unit"] = inputs_df["Feature"].apply(lambda x: rental_feature_units.get(x, "-"))
         inputs_df["Feature"] = inputs_df["Feature"].apply(
@@ -459,6 +488,22 @@ def display_inputs_table(user_inputs):
         )
         st.write("### Rental price prediction parameters:")
         st.table(inputs_df)
+
+
+def convert_months_to_date(months_since):
+    # Reference date is December 31, 2023
+    reference_date = date(2023, 12, 31)
+    # Calculate the actual date by adding the months
+    target_date = reference_date + relativedelta(months=months_since)
+    # Format the date into "Month Year"
+    return target_date.strftime("%b %Y")
+
+
+def convert_duration_to_date(months_duration):
+    reference_date = date(2023, 12, 31)
+    target_date = reference_date + relativedelta(months=months_duration)
+    month_year_string = target_date.strftime('%B %Y')
+    return month_year_string
 
 
 def prediction_results(user_inputs):
@@ -526,12 +571,12 @@ def prediction_results(user_inputs):
                 .replace("_", " ")
                 .title()
             )
-        rental_duration = user_inputs["months_duration"]
+        rental_duration = user_inputs["months_since_signedrental"]
         age = user_inputs["property_age"]
         predicted_price_badge = f"<span style='background-color: orange; color: black; padding: 0.2em 0.5em; border-radius: 0.3em; font-weight: bold;'>${predicted_price[0]:,.2f} per month</span>"
 
         st.write(
-            f"The predicted rental price of a <span style='color: orange'>{age} year old</span> <span style='color: orange'>{town}</span> <span style='color: orange'>{flat_type}</span> flat for <span style='color: orange'>{rental_duration} months </span> is <span style='color: orange'>{predicted_price_badge}</span>",
+            f"The predicted rental price of a <span style='color: orange'>{town}</span> <span style='color: orange'>{flat_type}</span> flat with an age of <span style='color: orange'>{age} years</span> and a rental starting in <span style='color: orange'>{convert_duration_to_date(rental_duration)}</span> is <span style='color: orange'>{predicted_price_badge}</span>",
             unsafe_allow_html=True,
         )
 
@@ -550,7 +595,7 @@ if prediction_mode == "Resale Price":
 else:
     # Display the input parameters table in the main page
     display_inputs_table(user_inputs)
-    st.write("### Predict with fitted linear model")
+    st.write("### Predict with fitted random forest model")
     predict_clicked = st.button("Predict Rental Price", key="predict_button")
     if predict_clicked:
         prediction_results(user_inputs)

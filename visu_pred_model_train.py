@@ -1,25 +1,27 @@
 # Preprocessing of Numerical and Categorical Data
-from sklearn import preprocessing
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-from sklearn.preprocessing import KBinsDiscretizer
-from sklearn.preprocessing import StandardScaler
-from sklearn import pipeline
-from sklearn import compose
-from sklearn import preprocessing
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-from sklearn.preprocessing import KBinsDiscretizer
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-import statsmodels.formula.api as smf
-
-import warnings
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import statsmodels.formula.api as smf
 import matplotlib.pyplot as plt
-import joblib
+import seaborn as sns
+import os
 from datetime import datetime
+
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import StandardScaler, LabelEncoder, OneHotEncoder, KBinsDiscretizer
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_squared_error, r2_score, classification_report, accuracy_score, f1_score
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import KFold
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+import joblib
+import warnings
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -75,43 +77,32 @@ joblib.dump(resales_linear_model, "resale_linear_model.joblib")
 
 
 ### Rental Price Prediction Model ###
-rentals_dataset = pd.read_csv("rentals_dataset.csv", index_col=0)
-rentals_dataset["date"] = pd.to_datetime(rentals_dataset["date"])
+rentals_dataset = pd.read_csv('rentals_dataset.csv', index_col=0)
+
+rentals_dataset['date'] = pd.to_datetime(rentals_dataset['date'])
 reference_date = datetime(2023, 12, 31)
-rentals_dataset["months_duration"] = (
-    rentals_dataset["date"].dt.year - reference_date.year
-) * 12 + (rentals_dataset["date"].dt.month - reference_date.month)
-reduced_df = rentals_dataset[
-    [
-        "town",
-        "flat_type",
-        "property_age",
-        "avg_floor_area_sqm",
-        "mrt_dist",
-        "shopping_dist",
-        "intschool_dist",
-        "hawker_dist",
-        "months_duration",
-        "monthly_rent",
-    ]
-]
-original_col = pd.get_dummies(reduced_df).columns
-preprocessed_df = pd.get_dummies(reduced_df, drop_first=True, dtype=int)
-dummy_var = set(original_col) - set(preprocessed_df.columns)
-preprocessed_df.columns = preprocessed_df.columns.str.replace(" ", "_")
-preprocessed_df.rename(
-    columns={"town_KALLANG/WHAMPOA": "town_KALLANG_WHAMPOA"}, inplace=True
+rentals_dataset['year'] = rentals_dataset['date'].dt.year
+rentals_dataset['months_since_signedrental'] = (
+    (rentals_dataset['date'].dt.year - reference_date.year) * 12 +
+    rentals_dataset['date'].dt.month - reference_date.month
 )
-x_variables = list(preprocessed_df.columns)
-y_variable = "monthly_rent"
-try:
-    x_variables.remove(y_variable)
-except ValueError:
-    pass
-rental_linear_model = smf.ols(
-    data=preprocessed_df, formula=f'{y_variable} ~ {"+".join(x_variables)}'
-).fit()
-joblib.dump(rental_linear_model, "rental_linear_model.joblib")
+reduced_df = rentals_dataset.drop(columns=['date', 'block', 'flat_type_group', 'postal', 'region', 'street_name', 'lat', 'lng',
+                                           'nearest_MRT', 'nearest_intschool', 'nearest_shopping', 'nearest_hawker', 
+                                           'price_sqm', 'year'])
+preprocessed_df = pd.get_dummies(reduced_df, drop_first=True, dtype=int)
+preprocessed_df.columns = preprocessed_df.columns.str.replace(' ', '_')
+preprocessed_df.rename(columns={'town_KALLANG/WHAMPOA': 'town_KALLANG_WHAMPOA'}, inplace=True)
+X = preprocessed_df.drop('monthly_rent', axis=1)
+y = preprocessed_df['monthly_rent']
+kf = KFold(n_splits=5, shuffle=True, random_state=1)
+models = []
+for train_index, test_index in kf.split(X):
+    X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+    y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+    model = RandomForestRegressor(max_depth=10, random_state=1)
+    model.fit(X_train, y_train)
+    models.append(model)
+joblib.dump(models[-1], 'rental_random_forest_model.joblib')
 
 print(x_variables)
 print(y_variable)
