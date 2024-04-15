@@ -177,7 +177,7 @@ def input_field(field_name, user_inputs):
             return st.sidebar.selectbox(
                 "Flat Type",
                 list(flat_type_options.values()),
-                index=list(flat_type_options.keys()).index(selected_flat_type),
+                index=list(flat_type_options.keys()).index("3_ROOM"),
                 key=unique_key,
             )
         elif field_name == "storey_range":
@@ -219,7 +219,7 @@ def input_field(field_name, user_inputs):
             return st.sidebar.number_input(
                 feature_names[field_name],
                 min_value=0.0,
-                value=80.0,
+                value=65.0,
                 step=0.1,
                 key=field_name,
             )
@@ -243,7 +243,7 @@ def input_field(field_name, user_inputs):
             return st.sidebar.selectbox(
                 "Flat Type",
                 list(rental_flat_type_options.values()),
-                index=list(rental_flat_type_options.keys()).index(selected_flat_type),
+                index=list(rental_flat_type_options.keys()).index("3_ROOM"),
                 key=unique_key,
             )
         elif field_name in ["storey_range", "remaining_lease"]:
@@ -276,7 +276,7 @@ def input_field(field_name, user_inputs):
             return st.sidebar.number_input(
                 rental_feature_names[field_name],
                 min_value=0.0,
-                value=80.0,
+                value=65.0,
                 step=1.0,
                 key=field_name,
             )
