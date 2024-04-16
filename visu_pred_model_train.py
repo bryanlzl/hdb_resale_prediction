@@ -103,6 +103,3 @@ for train_index, test_index in kf.split(X):
     model.fit(X_train, y_train)
     models.append(model)
 joblib.dump(models[-1], 'rental_random_forest_model.joblib')
-
-print(x_variables)
-print(y_variable)
