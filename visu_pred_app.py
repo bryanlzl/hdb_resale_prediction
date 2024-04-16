@@ -426,7 +426,6 @@ def predict_price(user_inputs):
                     1 if flat_type_option == flat_type else 0
                 )
         data_for_prediction = pd.DataFrame([user_inputs])
-        data_for_prediction.to_csv("TESTEST.csv", index=False)
         # Predict the log rental price
         predicted_price = rental_random_forest_model.predict(data_for_prediction)
         # Convert predicted log price -> actual rental price
